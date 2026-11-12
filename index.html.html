@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>記憶群島・認識失智症</title>
+<style>
+:root{--bg:#f4ecd8;--panel:#fbf5e6;--ink:#3a2f26;--mute:#7a6a58;--acc:#c9694a;--line:#d9ccb0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d2230;--panel:#262b3b;--ink:#efe6d2;--mute:#a99f8c;--acc:#e48a68;--line:#3a4157}}
+:root[data-theme="dark"]{--bg:#1d2230;--panel:#262b3b;--ink:#efe6d2;--mute:#a99f8c;--acc:#e48a68;--line:#3a4157}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;overflow:hidden}
+#app{display:flex;height:100%}
+#stage{flex:1;position:relative;min-width:0}
+#stage canvas{display:block}
+#paper{position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.35;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .45 0 0 0 0 .3 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E")}
+#hud{position:absolute;top:12px;left:12px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+#hud h1{margin:0;font-size:22px;letter-spacing:2px}
+#times{display:flex;gap:6px}
+button{font:inherit;color:var(--ink);background:var(--panel);border:2px solid var(--ink);border-radius:10px;padding:6px 12px;cursor:pointer}
+button.on{background:var(--acc);color:#fff}
+#side{width:320px;background:var(--panel);border-left:2px solid var(--ink);overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+#side h2{margin:0 0 4px}
+input{font:inherit;padding:8px 10px;border:2px solid var(--ink);border-radius:10px;background:var(--bg);color:var(--ink)}
+.item{display:flex;justify-content:space-between;align-items:center;padding:10px;border:2px solid var(--line);border-radius:10px;cursor:pointer}
+.item:hover,.item.sel{border-color:var(--acc)}
+.item small{color:var(--mute);display:block}
+.tag{color:var(--mute);font-size:13px;margin-bottom:6px}
+#detail a{color:var(--acc)}
+.opt{display:block;width:100%;text-align:left;margin-top:6px}
+#stamps{display:flex;gap:10px;align-items:center}
+.st{width:34px;height:34px;border-radius:50%;border:2px dashed var(--mute);display:grid;place-items:center;font-size:16px}
+.st.on{border:2px solid var(--acc);background:var(--acc);color:#fff}
+#msg{min-height:1.4em;margin-top:8px;font-weight:bold}
+#cert{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;z-index:9}
+#cert div{background:var(--panel);border:4px double var(--acc);border-radius:16px;padding:32px;text-align:center;max-width:300px}
+@media (max-width:700px){#app{flex-direction:column}#side{width:auto;height:46%;border-left:0;border-top:2px solid var(--ink)}#hud h1{font-size:18px}}
+</style></head>
+<body>
+<div id="app">
+<div id="stage"><div id="paper"></div>
+<div id="hud"><h1>記憶群島</h1><div style="font-size:13px;color:var(--mute)">認識失智症・闖關地圖</div><div id="times"></div><button id="home">⌂ 回主島</button></div></div>
+<aside id="side">
+<div><h2>島嶼闖關</h2><div id="stamps"></div></div>
+<input id="q" placeholder="搜尋主題…">
+<div id="list"></div>
+<div id="detail"><span class="tag">點擊島上的建築或清單，一起認識失智症。內容僅為衛教示意，無法取代醫師診斷；如有疑慮，請就醫評估。</span></div>
+</aside></div>
+<div id="cert"><div><div style="font-size:44px">🏅</div><h2>闖關成功！</h2><p>你已集滿所有印章，完成「記憶群島」。願我們都能成為失智友善的陪伴者。</p><button id="close">繼續逛逛</button></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const SPOTS=[
+{name:'警訊燈塔',theme:'早期辨識・十大警訊',pos:[-13,4],
+ intro:'失智症不是正常老化。記憶力減退影響生活、對時間地點感到混淆、判斷力變差、情緒或個性改變，都是需要留意的警訊。及早評估，能更早獲得協助。',
+ q:'下列哪一項比較可能是失智症的警訊？',o:['偶爾忘了鑰匙放哪，過一會兒就想起來','常忘記剛發生的事，並且影響日常生活','年紀大了，動作變慢'],a:1},
+{name:'大腦保健花園',theme:'預防與保護因子',pos:[0,-14],
+ intro:'目前沒有任何方法能保證不失智，但規律運動、控制血壓與血糖、維持社交、持續學習新事物，都有助於降低風險。',
+ q:'下列哪一種習慣有助於降低失智風險？',o:['規律運動並保持社交','長期獨處、少與人互動','忽略高血壓與糖尿病'],a:0},
+{name:'溫暖陪伴之家',theme:'照顧與溝通',pos:[13,5],
+ intro:'當長輩重複問同一個問題，指正或爭辯常讓雙方更挫折。放慢語速、用簡單的句子、回應他的感受，並維持固定作息，能帶來安心。照顧者也需要喘息，可撥打 1966 長照專線詢問資源。',
+ q:'長輩第三次問同一個問題，比較好的回應是？',o:['不理他','生氣地說「我剛剛才說過！」','耐心再答一次，並關心他的感受'],a:2},
+{name:'新藥實驗室',theme:'阿茲海默症新藥・樂意保與欣智樂',pos:[0,14],
+ intro:'樂意保（Leqembi，lecanemab）與欣智樂（Kisunla，donanemab）是台灣核准的兩款單株抗體藥物，針對阿茲海默症的病因，清除腦中的類澱粉蛋白，用於早期患者以延緩惡化，但不能治癒或逆轉。使用前需確認腦中有類澱粉沉積，並定期做腦部影像追蹤副作用（如腦水腫或微出血）。是否適合要由神經科醫師評估。依 2025 年報導，兩款藥在台灣屬自費，健保給付仍在評估，最新狀況請洽醫院或健保署。',
+ q:'樂意保與欣智樂主要適用於哪個階段的患者？',o:['所有類型、所有階段的失智症','早期（輕度）阿茲海默症患者','已是重度失智的患者'],a:1,more:[{q:'使用這類新藥期間，為什麼需要定期做腦部影像（如核磁共振）追蹤？',o:['監測可能的副作用，如腦水腫或微出血','確認病人有沒有長高','讓藥效變得更強'],a:0}]}];
+const TIMES=[
+{n:'晨',sky:0xf6d9b8,sun:0xffc890,si:.9,sp:[-10,6,8],amb:.55,water:0x8fc1c9,glow:0},
+{n:'午',sky:0xbfe3ee,sun:0xffffff,si:1.1,sp:[4,14,6],amb:.7,water:0x6fb7d4,glow:0},
+{n:'昏',sky:0xf0a27a,sun:0xff8a50,si:.8,sp:[10,4,-6],amb:.45,water:0xc88a8a,glow:.4},
+{n:'夜',sky:0x1c2340,sun:0x7f8fd8,si:.35,sp:[-6,10,-4],amb:.28,water:0x2a3a66,glow:1}];
+const $=s=>document.querySelector(s);
+let st={stamps:[]};
+try{const s=JSON.parse(localStorage.getItem('tc-island'));if(s&&s.stamps)st=s}catch(e){}
+const save=()=>{try{localStorage.setItem('tc-island',JSON.stringify(st))}catch(e){}};
+
+// ---- scene ----
+const stage=$('#stage'),R=new THREE.WebGLRenderer({antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));stage.prepend(R.domElement);
+const S=new THREE.Scene(),C=new THREE.PerspectiveCamera(40,1,.1,200);
+C.position.set(22,18,24);
+const O=new THREE.OrbitControls(C,R.domElement);
+O.enableDamping=true;O.maxPolarAngle=1.35;O.minDistance=6;O.maxDistance=55;O.target.set(0,.8,0);
+const amb=new THREE.HemisphereLight(0xffffff,0x8899aa,.6),sun=new THREE.DirectionalLight(0xffffff,1);
+S.add(amb,sun);S.background=new THREE.Color();S.fog=new THREE.Fog(0xffffff,50,120);
+const grad=new THREE.DataTexture(new Uint8Array([100,180,255]),3,1,THREE.LuminanceFormat);
+grad.minFilter=grad.magFilter=THREE.NearestFilter;grad.needsUpdate=true;
+const ink=new THREE.MeshBasicMaterial({color:0x3a2f26,side:THREE.BackSide});
+function mk(g,c,p,par,k){const m=new THREE.Mesh(g,new THREE.MeshToonMaterial({color:c,gradientMap:grad}));
+ m.position.set(...(p||[0,0,0]));const o=new THREE.Mesh(g,ink);o.scale.setScalar(k||1.06);m.add(o);par&&par.add(m);return m}
+const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d),Cy=(a,b,h,n)=>new THREE.CylinderGeometry(a,b,h,n||16),Co=(r,h,n)=>new THREE.ConeGeometry(r,h,n||12);
+const winM=new THREE.MeshBasicMaterial({color:0x9fb8c4});
+function win(par,x,y,z,ry){const w=new THREE.Mesh(new THREE.PlaneGeometry(.4,.5),winM);w.position.set(x,y,z);w.rotation.y=ry||0;par.add(w)}
+
+function island(x,z,r){mk(Cy(r+.8,r+1.2,.9,48),0xe8d5a0,[x,-.1,z],S,1.02);mk(Cy(r,r+.4,.5,48),0x9cc27a,[x,.25,z],S,1.02)}
+island(0,0,6);SPOTS.forEach(s=>island(s.pos[0],s.pos[1],4.5));
+const water=new THREE.Mesh(new THREE.CircleGeometry(90,48),new THREE.MeshToonMaterial({gradientMap:grad}));
+water.rotation.x=-Math.PI/2;water.position.y=-.5;S.add(water);
+
+const groups=[],pins=[];
+function spotGroup(i){const g=new THREE.Group();g.position.set(SPOTS[i].pos[0],.5,SPOTS[i].pos[1]);g.userData.i=i;S.add(g);groups.push(g);return g}
+// 警訊燈塔
+let g=spotGroup(0);
+mk(Cy(.9,1.3,3.6,16),0xf6efe0,[0,1.8,0],g);
+mk(Cy(1.2,1.15,.7,16),0xc9694a,[0,1.2,0],g);mk(Cy(1.06,1.02,.7,16),0xc9694a,[0,2.6,0],g);
+mk(Cy(1.05,1.05,.12,16),0x3a2f26,[0,3.6,0],g);
+const lamp=new THREE.Mesh(Cy(.6,.6,.7,16),winM);lamp.position.set(0,3.95,0);g.add(lamp);
+mk(Co(.9,.8,16),0xc9694a,[0,4.7,0],g);mk(B(.5,.8,.1),0x7a5a3a,[0,.4,1.27],g);
+// 大腦保健花園
+g=spotGroup(1);
+mk(Cy(.9,1.1,1,16),0xe3d7bd,[0,.5,0],g);
+[-.5,.5].forEach(x=>mk(new THREE.SphereGeometry(.9,20,14),0xf0a8b8,[x,1.9,0],g));
+for(let j=0;j<6;j++)mk(new THREE.SphereGeometry(.22,10,8),j%2?0x6fa8e8:0xf2c230,[Math.cos(j*1.05)*2.1,.25,Math.sin(j*1.05)*2.1],g);
+// 溫暖陪伴之家
+g=spotGroup(2);
+mk(B(3,1.6,2.2),0xf0d9a8,[0,.8,0],g);mk(Co(2.3,1.2,4),0xc9694a,[0,2.2,0],g).rotation.y=Math.PI/4;
+mk(B(.7,1,.1),0x7a5a3a,[0,.5,1.12],g);[-1,1].forEach(x=>win(g,x,.9,1.12));
+[-.2,.2].forEach(x=>mk(new THREE.SphereGeometry(.28,12,10),0xe05a3a,[x,3.35,0],g));
+mk(Co(.43,.55,12),0xe05a3a,[0,3.0,0],g).rotation.z=Math.PI;
+// 新藥實驗室
+function label(t,par,x,y,z){const c=document.createElement('canvas');c.width=256;c.height=64;const q=c.getContext('2d');q.fillStyle='rgba(251,245,230,.92)';q.fillRect(0,0,256,64);q.strokeStyle='#3a2f26';q.lineWidth=4;q.strokeRect(2,2,252,60);q.fillStyle='#3a2f26';q.font='bold 34px sans-serif';q.textAlign='center';q.textBaseline='middle';q.fillText(t,128,34);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),fog:false}));s.scale.set(2,.5,1);s.position.set(x,y,z);par.add(s)}
+g=spotGroup(3);
+mk(B(3.2,1.2,2),0xe8eef2,[0,.6,0],g);mk(B(3.4,.2,2.2),0x7a8fa6,[0,1.3,0],g);
+mk(B(.7,.2,.1),0xe05a3a,[0,.7,1.02],g);mk(B(.2,.7,.1),0xe05a3a,[0,.7,1.02],g);
+[[-.8,0x6fa8e8,'Leqembi'],[.8,0xf0a050,'Kisunla']].forEach(([x,c,n])=>{mk(Cy(.5,.5,1.4,16),c,[x,2.1,0],g);mk(Cy(.3,.3,.3,12),0x3a2f26,[x,2.95,0],g);label(n,g,x,3.7,0)});
+// pins
+SPOTS.forEach((s,i)=>{const p=new THREE.Group();p.position.y=[6,3.8,4.8,5][i];
+ const c=mk(Co(.3,.7,12),0xe05a3a,[0,0,0],p);c.rotation.x=Math.PI;
+ const b=mk(new THREE.SphereGeometry(.28,16,12),0xe05a3a,[0,.55,0],p);
+ p.userData.mats=[c.material,b.material];groups[i].add(p);pins.push(p)});
+// trees
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+for(let k=0;k<10;k++){const a=rnd()*6.283,r=3.6+rnd()*1.8,x=Math.cos(a)*r,z=Math.sin(a)*r;
+ if(SPOTS.some(s=>Math.hypot(s.pos[0]-x,s.pos[1]-z)<3))continue;
+ const t=new THREE.Group();t.position.set(x,.5,z);S.add(t);const h=.8+rnd()*.6;
+ mk(Cy(.12,.15,.7,8),0x7a5a3a,[0,.35,0],t);mk(Co(.6*h,1.5*h,8),k%3?0x5c9a5a:0x7bb26a,[0,1.2,0],t)}
+
+// central plaza + memory tree + forget-me-nots
+mk(Cy(2.2,2.4,.12,32),0xe3d7bd,[0,.55,0],S,1.03);
+mk(Cy(.3,.45,2.2,10),0x7a5a3a,[0,1.6,0],S);
+mk(new THREE.SphereGeometry(1.3,16,12),0x7bb26a,[0,3.2,0],S);
+mk(new THREE.SphereGeometry(1,16,12),0x5c9a5a,[.9,2.8,.3],S);mk(new THREE.SphereGeometry(1,16,12),0x8cc07a,[-.8,2.9,-.3],S);
+for(let j=0;j<8;j++)mk(new THREE.SphereGeometry(.18,10,8),0x6fa8e8,[Math.cos(j*.785)*1.7,.75,Math.sin(j*.785)*1.7],S);
+// bridges + small trees on each spot island
+SPOTS.forEach(s=>{const[x,z]=s.pos,d=Math.hypot(x,z),a=5.6,b=d-4.1,m=(a+b)/2;
+ const br=mk(B(1.3,.2,b-a),0xb08a5a,[x/d*m,.45,z/d*m],S,1.08);br.rotation.y=Math.atan2(x,z);
+ for(let j=0;j<3;j++){const ang=j*2.1+.3,t=new THREE.Group();t.position.set(x+Math.cos(ang)*3.5,.5,z+Math.sin(ang)*3.5);S.add(t);mk(Cy(.12,.15,.7,8),0x7a5a3a,[0,.35,0],t);mk(Co(.6,1.4,8),0x5c9a5a,[0,1.2,0],t)}});
+
+// ---- time of day ----
+const cur={sky:new THREE.Color(),sun:new THREE.Color(),water:new THREE.Color(),si:1,amb:.6,glow:0,sp:new THREE.Vector3(4,14,6)};
+let tg=TIMES[1];const night=new THREE.Color(0x9fb8c4),lit=new THREE.Color(0xffd36b);
+Object.assign(cur,{});cur.sky.set(tg.sky);cur.sun.set(tg.sun);cur.water.set(tg.water);
+function setTime(i){tg=TIMES[i];[...$('#times').children].forEach((b,j)=>b.classList.toggle('on',i==j))}
+TIMES.forEach((t,i)=>{const b=document.createElement('button');b.textContent=t.n;b.onclick=()=>setTime(i);$('#times').append(b)});
+setTime(1);
+
+// ---- interaction ----
+let focus=null,sel=-1,qi=0;const Q=s=>[{q:s.q,o:s.o,a:s.a}].concat(s.more||[]);
+O.addEventListener('start',()=>focus=null);
+const ray=new THREE.Raycaster(),mv=new THREE.Vector2();let down;
+R.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+R.domElement.addEventListener('pointerup',e=>{
+ if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;
+ const r=R.domElement.getBoundingClientRect();
+ mv.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
+ ray.setFromCamera(mv,C);const h=ray.intersectObjects(groups,true)[0];
+ if(h){let o=h.object;while(o&&o.userData.i==null)o=o.parent;if(o)pick(o.userData.i)}});
+function pick(i){sel=i;qi=0;const p=groups[i].position;
+ focus={t:new THREE.Vector3(p.x,p.y+1,p.z),c:new THREE.Vector3(p.x+7,p.y+6,p.z+8)};
+ renderDetail();renderList()}
+
+// ---- UI ----
+function renderStamps(){$('#stamps').innerHTML=SPOTS.map((s,i)=>`<div class="st ${st.stamps.includes(i)?'on':''}" title="${s.name}">${st.stamps.includes(i)?'✓':i+1}</div>`).join('')+`<span class="tag" style="margin:0">${st.stamps.length}/${SPOTS.length}</span>`}
+function renderList(){const f=$('#q').value.trim();
+ $('#list').innerHTML=SPOTS.map((s,i)=>({s,i})).filter(({s})=>!f||(s.name+s.theme).includes(f)).map(({s,i})=>
+ `<div class="item ${i==sel?'sel':''}" data-i="${i}"><div>${s.name}<small>${s.theme}</small></div><span>${st.pins?'':''}${st.stamps.includes(i)?'🏅':'›'}</span></div>`).join('')||'<span class="tag">找不到景點</span>'}
+function renderDetail(){if(sel<0)return;const s=SPOTS[sel],done=st.stamps.includes(sel);
+ $('#detail').innerHTML=`<h2>${s.name}</h2><div class="tag">${s.theme}</div><p>${s.intro}</p>
+ <a href="https://www.tada2002.org.tw" target="_blank" rel="noopener">台灣失智症協會 ↗</a>
+ <div style="margin-top:14px"><b>${done?'已蓋章 ✓':'闖關題 '+(qi+1)+'/'+Q(s).length+'：'+Q(s)[qi].q}</b>${done?'':Q(s)[qi].o.map((t,j)=>`<button class="opt" data-j="${j}">${t}</button>`).join('')}<div id="msg"></div></div>`}
+function paint(){pins.forEach((p,i)=>p.userData.mats.forEach(m=>m.color.set(st.stamps.includes(i)?0xf2c230:0xe05a3a)))}
+$('#list').onclick=e=>{const d=e.target.closest('.item');if(d)pick(+d.dataset.i)};
+$('#q').oninput=renderList;
+$('#detail').onclick=e=>{const b=e.target.closest('.opt');if(!b)return;
+ const Qs=Q(SPOTS[sel]),ok=+b.dataset.j==Qs[qi].a;if(ok&&qi<Qs.length-1){qi++;renderDetail();$('#msg').textContent='答對了！再一題～';return}
+ if(!ok){$('#msg').textContent='再想想看～';return}
+ if(!st.stamps.includes(sel))st.stamps.push(sel);save();paint();renderStamps();renderDetail();renderList();
+ if(st.stamps.length==SPOTS.length)$('#cert').style.display='grid'};
+$('#close').onclick=()=>$('#cert').style.display='none';
+$('#home').onclick=()=>{sel=-1;focus={t:new THREE.Vector3(0,.8,0),c:new THREE.Vector3(22,18,24)};renderList()};
+renderStamps();renderList();paint();
+
+// ---- loop ----
+function resize(){const w=stage.clientWidth,h=stage.clientHeight;R.setSize(w,h);C.aspect=w/h;C.updateProjectionMatrix()}
+new ResizeObserver(resize).observe(stage);resize();
+const clock=new THREE.Clock();
+(function loop(){requestAnimationFrame(loop);const t=clock.getElapsedTime(),k=.06;
+ cur.sky.lerp(new THREE.Color(tg.sky),k);cur.sun.lerp(new THREE.Color(tg.sun),k);cur.water.lerp(new THREE.Color(tg.water),k);
+ cur.si+=(tg.si-cur.si)*k;cur.amb+=(tg.amb-cur.amb)*k;cur.glow+=(tg.glow-cur.glow)*k;cur.sp.lerp(new THREE.Vector3(...tg.sp),k);
+ S.background.copy(cur.sky);S.fog.color.copy(cur.sky);sun.color.copy(cur.sun);sun.intensity=cur.si;sun.position.copy(cur.sp);
+ amb.intensity=cur.amb;water.material.color.copy(cur.water);winM.color.copy(night).lerp(lit,cur.glow);
+ pins.forEach((p,i)=>{p.position.y+=Math.sin(t*2+i)*.004;p.rotation.y=t});
+ if(focus){O.target.lerp(focus.t,.08);C.position.lerp(focus.c,.08);if(C.position.distanceTo(focus.c)<.05)focus=null}
+ O.update();R.render(S,C)})();
+</script></body></html>
